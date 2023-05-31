@@ -1,5 +1,6 @@
 from __future__ import print_function
 import os.path
+import pickle
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -7,6 +8,7 @@ from googleapiclient.errors import HttpError
 
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
+
 
 def main():
     creds = None
@@ -29,7 +31,7 @@ def main():
     results = service.files().list(
         pageSize=1000, fields="nextPageToken, files(id, name, permissions)").execute()
     items = results.get('files', [])
-    
+
     if not items:
         print('No files found.')
     else:
@@ -47,6 +49,7 @@ def main():
                         print('Changed sharing settings for file: %s' % item['name'])
                     except HttpError as error:
                         print('An error occurred: %s' % error)
+
 
 if __name__ == '__main__':
     main()
