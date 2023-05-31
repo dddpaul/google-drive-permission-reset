@@ -2,6 +2,7 @@ from __future__ import print_function
 import os.path
 import pickle
 import argparse
+import time
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -11,7 +12,7 @@ from googleapiclient.errors import HttpError
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
 
-def process_files(service, folder_id):
+def process_files(service, folder_id, rate_limit):
     # Get files in the folder
     file_results = service.files().list(
         q="'{}' in parents".format(folder_id),
@@ -35,6 +36,7 @@ def process_files(service, folder_id):
                         print('Changed sharing settings for file: %s' % item['name'])
                     except HttpError as error:
                         print('An error occurred: %s' % error)
+                    time.sleep(rate_limit)
 
     # Now process subfolders
     folder_results = service.files().list(
@@ -44,13 +46,14 @@ def process_files(service, folder_id):
 
     for item in folder_items:
         print('Entering subfolder:', item['name'])
-        process_files(service, item['id'])
+        process_files(service, item['id'], rate_limit)
 
 
 def main():
     # Parsing command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
+    parser.add_argument('--rate-limit', type=float, default=0.5, help='Rate limit in seconds between requests')
     args = parser.parse_args()
 
     creds = None
@@ -84,7 +87,7 @@ def main():
 
         folder_id = folder_items[0]['id']
 
-    process_files(service, folder_id)
+    process_files(service, folder_id, args.rate_limit)
 
 
 if __name__ == '__main__':
