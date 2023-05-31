@@ -16,7 +16,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def process_files(service, folder_id, rate_limit, current_path):
+def process_files(service, folder_id, rate_limit, current_path, dry_run):
     try:
         # Get files in the folder
         page_token = None
@@ -36,14 +36,17 @@ def process_files(service, folder_id, rate_limit, current_path):
                     permissions = item.get('permissions', [])
                     for perm in permissions:
                         if perm['type'] == 'anyone':
-                            try:
-                                service.permissions().delete(
-                                    fileId=item['id'],
-                                    permissionId=perm['id']
-                                ).execute()
-                                logging.info('Changed sharing settings for file: %s' % item['name'])
-                            except HttpError as error:
-                                logging.error('An error occurred: %s' % error)
+                            if not dry_run:
+                                try:
+                                    service.permissions().delete(
+                                        fileId=item['id'],
+                                        permissionId=perm['id']
+                                    ).execute()
+                                    logging.info('Changed sharing settings for file: %s' % item['name'])
+                                except HttpError as error:
+                                    logging.error('An error occurred: %s' % error)
+                            else:
+                                logging.info('Would change sharing settings for file: %s' % item['name'])
                             time.sleep(rate_limit)
 
             page_token = file_results.get('nextPageToken', None)
@@ -58,7 +61,7 @@ def process_files(service, folder_id, rate_limit, current_path):
 
         for item in folder_items:
             logging.info('Entering subfolder: %s' % item['name'])
-            process_files(service, item['id'], rate_limit, current_path + '/' + item['name'])
+            process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
     except Exception as e:
         logging.error('An error occurred during processing: %s' % str(e))
 
@@ -68,7 +71,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
     parser.add_argument('--rate-limit', type=float, default=0.5, help='Rate limit in seconds between requests')
+    parser.add_argument('--dry-run', action='store_true', help='Run script in dry-run mode')
     args = parser.parse_args()
+
+    if not args.dry_run:
+        confirm = input("This script will make changes to the files. Are you sure you want to continue? (Y/N): ")
+        if not confirm.lower() == 'y':
+            return
 
     creds = None
     if os.path.exists('token.pickle'):
@@ -104,7 +113,7 @@ def main():
             folder_id = folder_items[0]['id']
             current_path = args.folder_name
 
-        process_files(service, folder_id, args.rate_limit, current_path)
+        process_files(service, folder_id, args.rate_limit, current_path, args.dry_run)
     except Exception as e:
         logging.error('An error occurred: %s' % str(e))
 
