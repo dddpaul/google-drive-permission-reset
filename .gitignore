@@ -257,3 +257,4 @@ tags
 # End of https://www.gitignore.io/api/vim,node,linux,macos,jetbrains+all,visualstudiocode
 
 credentials.json
+token.pickle
