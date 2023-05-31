@@ -19,29 +19,36 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def process_files(service, folder_id, rate_limit, current_path):
     try:
         # Get files in the folder
-        file_results = service.files().list(
-            q="'{}' in parents".format(folder_id),
-            pageSize=1000, fields="nextPageToken, files(id, name, permissions)").execute()
-        file_items = file_results.get('files', [])
+        page_token = None
+        while True:
+            file_results = service.files().list(
+                q="'{}' in parents".format(folder_id),
+                pageSize=1000, fields="nextPageToken, files(id, name, permissions)",
+                pageToken=page_token).execute()
+            file_items = file_results.get('files', [])
 
-        if not file_items:
-            logging.info('No files found in the folder.')
-        else:
-            logging.info('Files:')
-            for item in file_items:
-                logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
-                permissions = item.get('permissions', [])
-                for perm in permissions:
-                    if perm['type'] == 'anyone':
-                        try:
-                            service.permissions().delete(
-                                fileId=item['id'],
-                                permissionId=perm['id']
-                            ).execute()
-                            logging.info('Changed sharing settings for file: %s' % item['name'])
-                        except HttpError as error:
-                            logging.error('An error occurred: %s' % error)
-                        time.sleep(rate_limit)
+            if not file_items:
+                logging.info('No files found in the folder.')
+            else:
+                logging.info('Files:')
+                for item in file_items:
+                    logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
+                    permissions = item.get('permissions', [])
+                    for perm in permissions:
+                        if perm['type'] == 'anyone':
+                            try:
+                                service.permissions().delete(
+                                    fileId=item['id'],
+                                    permissionId=perm['id']
+                                ).execute()
+                                logging.info('Changed sharing settings for file: %s' % item['name'])
+                            except HttpError as error:
+                                logging.error('An error occurred: %s' % error)
+                            time.sleep(rate_limit)
+
+            page_token = file_results.get('nextPageToken', None)
+            if page_token is None:
+                break
 
         # Now process subfolders
         folder_results = service.files().list(
