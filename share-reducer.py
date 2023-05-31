@@ -3,6 +3,7 @@ import os.path
 import pickle
 import argparse
 import time
+import logging
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -11,8 +12,11 @@ from googleapiclient.errors import HttpError
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def process_files(service, folder_id, rate_limit):
+
+def process_files(service, folder_id, rate_limit, current_path):
     try:
         # Get files in the folder
         file_results = service.files().list(
@@ -21,11 +25,11 @@ def process_files(service, folder_id, rate_limit):
         file_items = file_results.get('files', [])
 
         if not file_items:
-            print('No files found in the folder.')
+            logging.info('No files found in the folder.')
         else:
-            print('Files:')
+            logging.info('Files:')
             for item in file_items:
-                print(u'{0} ({1})'.format(item['name'], item['id']))
+                logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
                 permissions = item.get('permissions', [])
                 for perm in permissions:
                     if perm['type'] == 'anyone':
@@ -34,9 +38,9 @@ def process_files(service, folder_id, rate_limit):
                                 fileId=item['id'],
                                 permissionId=perm['id']
                             ).execute()
-                            print('Changed sharing settings for file: %s' % item['name'])
+                            logging.info('Changed sharing settings for file: %s' % item['name'])
                         except HttpError as error:
-                            print('An error occurred: %s' % error)
+                            logging.error('An error occurred: %s' % error)
                         time.sleep(rate_limit)
 
         # Now process subfolders
@@ -46,10 +50,10 @@ def process_files(service, folder_id, rate_limit):
         folder_items = folder_results.get('files', [])
 
         for item in folder_items:
-            print('Entering subfolder:', item['name'])
-            process_files(service, item['id'], rate_limit)
+            logging.info('Entering subfolder: %s' % item['name'])
+            process_files(service, item['id'], rate_limit, current_path + '/' + item['name'])
     except Exception as e:
-        print('An error occurred during processing: %s' % str(e))
+        logging.error('An error occurred during processing: %s' % str(e))
 
 
 def main():
@@ -78,6 +82,7 @@ def main():
 
         if args.folder_name == '/':
             folder_id = 'root'
+            current_path = ''
         else:
             # Searching for the folder
             folder_results = service.files().list(
@@ -86,14 +91,15 @@ def main():
             folder_items = folder_results.get('files', [])
 
             if not folder_items:
-                print('No folder found.')
+                logging.error('No folder found.')
                 return
 
             folder_id = folder_items[0]['id']
+            current_path = args.folder_name
 
-        process_files(service, folder_id, args.rate_limit)
+        process_files(service, folder_id, args.rate_limit, current_path)
     except Exception as e:
-        print('An error occurred: %s' % str(e))
+        logging.error('An error occurred: %s' % str(e))
 
 
 if __name__ == '__main__':
