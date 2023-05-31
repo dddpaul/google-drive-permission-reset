@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os.path
 import pickle
+import argparse
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -11,6 +12,11 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 
 
 def main():
+    # Parsing command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
+    args = parser.parse_args()
+
     creds = None
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
@@ -27,16 +33,32 @@ def main():
 
     service = build('drive', 'v3', credentials=creds)
 
-    # Call the Drive v3 API
-    results = service.files().list(
-        pageSize=1000, fields="nextPageToken, files(id, name, permissions)").execute()
-    items = results.get('files', [])
+    if args.folder_name == '/':
+        folder_id = 'root'
+    else:
+        # Searching for the folder
+        folder_results = service.files().list(
+            q="name='{}' and mimeType='application/vnd.google-apps.folder'".format(args.folder_name),
+            fields="files(id, name)").execute()
+        folder_items = folder_results.get('files', [])
 
-    if not items:
-        print('No files found.')
+        if not folder_items:
+            print('No folder found.')
+            return
+
+        folder_id = folder_items[0]['id']
+
+    # Get files in the folder
+    file_results = service.files().list(
+        q="'{}' in parents".format(folder_id),
+        pageSize=1000, fields="nextPageToken, files(id, name, permissions)").execute()
+    file_items = file_results.get('files', [])
+
+    if not file_items:
+        print('No files found in the folder.')
     else:
         print('Files:')
-        for item in items:
+        for item in file_items:
             print(u'{0} ({1})'.format(item['name'], item['id']))
             permissions = item.get('permissions', [])
             for perm in permissions:
