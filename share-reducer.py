@@ -79,25 +79,25 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
 
             if not file_items:
                 logging.info('No files found in the folder.')
-            else:
-                logging.info('Files:')
-                for item in file_items:
-                    logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
-                    permissions = item.get('permissions', [])
-                    for perm in permissions:
-                        if perm['type'] == 'anyone':
-                            if not dry_run:
-                                try:
-                                    service.permissions().delete(
-                                        fileId=item['id'],
-                                        permissionId=perm['id']
-                                    ).execute()
-                                    logging.info('Changed sharing settings for file: %s' % item['name'])
-                                except HttpError as error:
-                                    logging.error('Google Drive API request failed: %s' % error)
-                            else:
-                                logging.info('Would change sharing settings for file: %s' % item['name'])
-                            time.sleep(rate_limit)
+                continue
+
+            for item in file_items:
+                logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
+                permissions = item.get('permissions', [])
+                for perm in permissions:
+                    if perm['type'] == 'anyone':
+                        if not dry_run:
+                            try:
+                                service.permissions().delete(
+                                    fileId=item['id'],
+                                    permissionId=perm['id']
+                                ).execute()
+                                logging.info('Changed sharing settings for file: %s' % item['name'])
+                            except HttpError as error:
+                                logging.error('Google Drive API request failed: %s' % error)
+                        else:
+                            logging.info('Would change sharing settings for file: %s' % item['name'])
+                        time.sleep(rate_limit)
 
             page_token = file_results.get('nextPageToken', None)
             if page_token is None:
@@ -110,7 +110,6 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
         folder_items = folder_results.get('files', [])
 
         for item in folder_items:
-            logging.info('Entering subfolder: %s' % item['name'])
             process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
     except Exception as e:
         logging.error('An error occurred during processing: %s' % str(e))
