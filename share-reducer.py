@@ -7,6 +7,7 @@ import logging
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
 
 # If modifying these SCOPES, delete the file token.pickle.
@@ -19,38 +20,49 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 def authenticate_with_google_drive():
     """Authenticate with Google Drive and return the service object."""
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+    try:
+        if os.path.exists('token.pickle'):
+            with open('token.pickle', 'rb') as token:
+                creds = pickle.load(token)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(
+                    'credentials.json', SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open('token.pickle', 'wb') as token:
+                pickle.dump(creds, token)
+    except FileNotFoundError as e:
+        logging.error('File not found: %s' % str(e))
+        return None
+    except GoogleAuthError as e:
+        logging.error('Authentication failed: %s' % str(e))
+        return None
 
     return build('drive', 'v3', credentials=creds)
 
 
 def get_folder_id(service, folder_name):
     """Get and return folder id of the specified folder."""
-    if folder_name == '/':
-        return 'root', ''
+    try:
+        if folder_name == '/':
+            return 'root', ''
 
-    # Searching for the folder
-    folder_results = service.files().list(
-        q="name='{}' and mimeType='application/vnd.google-apps.folder'".format(folder_name),
-        fields="files(id, name)").execute()
-    folder_items = folder_results.get('files', [])
+        # Searching for the folder
+        folder_results = service.files().list(
+            q="name='{}' and mimeType='application/vnd.google-apps.folder'".format(folder_name),
+            fields="files(id, name)").execute()
+        folder_items = folder_results.get('files', [])
 
-    if not folder_items:
-        logging.error('No folder found.')
+        if not folder_items:
+            logging.error('No folder found.')
+            return None, None
+
+        return folder_items[0]['id'], folder_name
+    except HttpError as e:
+        logging.error('Google Drive API request failed: %s' % str(e))
         return None, None
-
-    return folder_items[0]['id'], folder_name
 
 
 def process_files(service, folder_id, rate_limit, current_path, dry_run):
@@ -82,7 +94,7 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
                                     ).execute()
                                     logging.info('Changed sharing settings for file: %s' % item['name'])
                                 except HttpError as error:
-                                    logging.error('An error occurred: %s' % error)
+                                    logging.error('Google Drive API request failed: %s' % error)
                             else:
                                 logging.info('Would change sharing settings for file: %s' % item['name'])
                             time.sleep(rate_limit)
@@ -119,6 +131,8 @@ def main():
             return
 
     service = authenticate_with_google_drive()
+    if service is None:
+        return
 
     folder_id, current_path = get_folder_id(service, args.folder_name)
     if folder_id is None:
