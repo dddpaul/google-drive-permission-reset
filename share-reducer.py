@@ -16,7 +16,45 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
+def authenticate_with_google_drive():
+    """Authenticate with Google Drive and return the service object."""
+    creds = None
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+
+    return build('drive', 'v3', credentials=creds)
+
+
+def get_folder_id(service, folder_name):
+    """Get and return folder id of the specified folder."""
+    if folder_name == '/':
+        return 'root', ''
+
+    # Searching for the folder
+    folder_results = service.files().list(
+        q="name='{}' and mimeType='application/vnd.google-apps.folder'".format(folder_name),
+        fields="files(id, name)").execute()
+    folder_items = folder_results.get('files', [])
+
+    if not folder_items:
+        logging.error('No folder found.')
+        return None, None
+
+    return folder_items[0]['id'], folder_name
+
+
 def process_files(service, folder_id, rate_limit, current_path, dry_run):
+    """Process files under the specified folder recursively."""
     try:
         # Get files in the folder
         page_token = None
@@ -67,6 +105,7 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
 
 
 def main():
+    """Main function."""
     # Parsing command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
@@ -79,43 +118,13 @@ def main():
         if not confirm.lower() == 'y':
             return
 
-    creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
+    service = authenticate_with_google_drive()
 
-    try:
-        service = build('drive', 'v3', credentials=creds)
+    folder_id, current_path = get_folder_id(service, args.folder_name)
+    if folder_id is None:
+        return
 
-        if args.folder_name == '/':
-            folder_id = 'root'
-            current_path = ''
-        else:
-            # Searching for the folder
-            folder_results = service.files().list(
-                q="name='{}' and mimeType='application/vnd.google-apps.folder'".format(args.folder_name),
-                fields="files(id, name)").execute()
-            folder_items = folder_results.get('files', [])
-
-            if not folder_items:
-                logging.error('No folder found.')
-                return
-
-            folder_id = folder_items[0]['id']
-            current_path = args.folder_name
-
-        process_files(service, folder_id, args.rate_limit, current_path, args.dry_run)
-    except Exception as e:
-        logging.error('An error occurred: %s' % str(e))
+    process_files(service, folder_id, args.rate_limit, current_path, args.dry_run)
 
 
 if __name__ == '__main__':
