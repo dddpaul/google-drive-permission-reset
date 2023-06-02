@@ -17,4 +17,4 @@ RUN apk add --no-cache --virtual .build-deps \
     && apk del .build-deps
 
 # Run script.py when the container launches
-CMD ["python", "/app/share-reducer.py"]
+CMD ["python", "/app/permission-reset.py"]
