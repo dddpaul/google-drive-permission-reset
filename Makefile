@@ -8,6 +8,9 @@ build:
 debug: build
 	@docker run -it --entrypoint=sh ${IMAGE}
 
+run:
+	@docker run -v $(pwd):/host/ -v $(pwd):/host/ ${IMAGE}
+
 release: build
 	@echo "Tag image with version $(version)"
 	@docker tag ${IMAGE} ${IMAGE}:$(version)
