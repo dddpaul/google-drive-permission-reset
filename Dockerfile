@@ -5,7 +5,8 @@ FROM python:3.11-alpine
 WORKDIR /app
 
 # Copy the current directory contents into the container at /app
-COPY . /app
+COPY permission-reset.py /app
+COPY requirements.txt /app
 
 # Install any needed packages specified in requirements.txt
 RUN apk add --no-cache --virtual .build-deps \
@@ -17,4 +18,4 @@ RUN apk add --no-cache --virtual .build-deps \
     && apk del .build-deps
 
 # Run script.py when the container launches
-CMD ["python", "/app/permission-reset.py"]
+ENTRYPOINT ["python", "/app/permission-reset.py"]
