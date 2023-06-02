@@ -65,21 +65,37 @@ def get_folder_id(service, folder_name):
         return None, None
 
 
+def google_drive_list_request(service, query, fields, page_token=None):
+    """Make a list request to the Google Drive API."""
+    try:
+        return service.files().list(
+            q=query,
+            pageSize=1000,
+            fields=fields,
+            pageToken=page_token
+        ).execute()
+    except HttpError as error:
+        logging.error('Google Drive API request failed: %s' % str(error))
+        return None
+
+
 def process_files(service, folder_id, rate_limit, current_path, dry_run):
     """Process files under the specified folder recursively."""
     try:
         # Get files in the folder
         page_token = None
         while True:
-            file_results = service.files().list(
-                q="'{}' in parents".format(folder_id),
-                pageSize=1000, fields="nextPageToken, files(id, name, permissions)",
-                pageToken=page_token).execute()
-            file_items = file_results.get('files', [])
+            file_results = google_drive_list_request(
+                service,
+                "'{}' in parents".format(folder_id),
+                "nextPageToken, files(id, name, permissions)",
+                page_token
+            )
 
-            if not file_items:
-                logging.info('No files found in the folder.')
-                continue
+            if file_results is None:
+                break
+
+            file_items = file_results.get('files', [])
 
             for item in file_items:
                 logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
@@ -104,13 +120,18 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
                 break
 
         # Now process subfolders
-        folder_results = service.files().list(
-            q="'{}' in parents and mimeType='application/vnd.google-apps.folder'".format(folder_id),
-            fields="files(id, name)").execute()
-        folder_items = folder_results.get('files', [])
+        folder_results = google_drive_list_request(
+            service,
+            "'{}' in parents and mimeType='application/vnd.google-apps.folder'".format(folder_id),
+            "files(id, name)"
+        )
 
-        for item in folder_items:
-            process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
+        if folder_results is not None:
+            folder_items = folder_results.get('files', [])
+
+            for item in folder_items:
+                process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
+
     except Exception as e:
         logging.error('An error occurred during processing: %s' % str(e))
 
