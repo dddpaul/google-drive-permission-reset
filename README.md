@@ -56,7 +56,8 @@ Basic usage:
 python drive_permission_changer.py --folder-name MyFolder
 ```
 
-This command will start processing the folder named 'MyFolder' and its subfolders.
+This command will start processing the folder named 'MyFolder' and its subfolders. `--folder-name` must specify level-1
+subfolder of root, for example, you can't specify `folder1/folder2`.
 
 Optional arguments:
 
