@@ -28,9 +28,11 @@ You should use `pip3` instead of `pip` on some systems.
 3. Set up your credentials:
 
 * Go to the [Google Cloud Console](https://console.cloud.google.com/)
-* Create a new project, then select it
+* Create a new project, then select it (or use your existing one)
+* Configure Consent screen for new project (use your email as contant), then publish app
 * Search for 'Google Drive API', enable it for your project
 * Go to 'Credentials', then 'Create credentials', and select 'OAuth client ID'
+* Set 'Application type' to 'Desktop app' and name it as you wish
 * Download the JSON file and rename it to 'credentials.json'
 
 Note: The steps for creating 'credentials.json' are just a brief overview, the full procedure is more complex and
@@ -73,6 +75,10 @@ Docker usage:
 ```bash
 ./docker-run.sh  --folder-name MyFolder
 ```
+
+## Security
+
+Please remove `token.pickle` file after you've finished.
 
 ## Contributing
 
