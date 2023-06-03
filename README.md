@@ -23,6 +23,7 @@ cd google-drive-permission-reset
 ```bash
 pip install -r requirements.txt
 ```
+You should use `pip3` instead of `pip` on some systems.
 
 3. Set up your credentials:
 
