@@ -17,21 +17,25 @@ SCOPES = ['https://www.googleapis.com/auth/drive']
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def authenticate_with_google_drive():
+def authenticate_with_google_drive(auth_port, credentials_path, token_path):
     """Authenticate with Google Drive and return the service object."""
     creds = None
     try:
-        if os.path.exists('token.pickle'):
-            with open('token.pickle', 'rb') as token:
+        if os.path.exists(token_path):
+            with open(token_path, 'rb') as token:
                 creds = pickle.load(token)
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    'credentials.json', SCOPES)
-                creds = flow.run_local_server(port=0)
-            with open('token.pickle', 'wb') as token:
+                    credentials_path, SCOPES)
+                if auth_port > 0:
+                    # to forward traffic from host to docker container
+                    creds = flow.run_local_server(port=auth_port, bind_addr="0.0.0.0")
+                else:
+                    creds = flow.run_local_server(port=auth_port)
+            with open(token_path, 'wb') as token:
                 pickle.dump(creds, token)
     except FileNotFoundError as e:
         logging.error('File not found: %s' % str(e))
@@ -143,6 +147,9 @@ def main():
     parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
     parser.add_argument('--rate-limit', type=float, default=0.5, help='Rate limit in seconds between requests')
     parser.add_argument('--dry-run', action='store_true', help='Run script in dry-run mode')
+    parser.add_argument('--auth-port', type=int, default=0, help='Port for the authentication server')
+    parser.add_argument('--credentials-path', type=str, default='./credentials.json', help='Path to the credentials file')
+    parser.add_argument('--token-path', type=str, default='./token.pickle', help='Path to the token file')
     args = parser.parse_args()
 
     if not args.dry_run:
@@ -150,7 +157,7 @@ def main():
         if not confirm.lower() == 'y':
             return
 
-    service = authenticate_with_google_drive()
+    service = authenticate_with_google_drive(args.auth_port, args.credentials_path, args.token_path)
     if service is None:
         return
 

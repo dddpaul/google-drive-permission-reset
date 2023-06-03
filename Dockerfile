@@ -17,5 +17,8 @@ RUN apk add --no-cache --virtual .build-deps \
     && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
+# Expose local auth server port
+EXPOSE 45678
+
 # Run script.py when the container launches
 ENTRYPOINT ["python", "/app/permission-reset.py"]
