@@ -13,9 +13,6 @@ from googleapiclient.errors import HttpError
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
 
 def authenticate_with_google_drive(auth_port, credentials_path, token_path):
     """Authenticate with Google Drive and return the service object."""
@@ -102,7 +99,7 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
             file_items = file_results.get('files', [])
 
             for item in file_items:
-                logging.info(u'{0}/{1} ({2})'.format(current_path, item['name'], item['id']))
+                logging.debug(u'Checking {0}/{1} ({2})'.format(current_path, item['name'], item['id']))
                 permissions = item.get('permissions', [])
                 for perm in permissions:
                     if perm['type'] == 'anyone':
@@ -134,6 +131,7 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
             folder_items = folder_results.get('files', [])
 
             for item in folder_items:
+                logging.info(u'Processing folder {0}/{1} ({2})'.format(current_path, item['name'], item['id']))
                 process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
 
     except Exception as e:
@@ -148,9 +146,14 @@ def main():
     parser.add_argument('--rate-limit', type=float, default=0.5, help='Rate limit in seconds between requests')
     parser.add_argument('--dry-run', action='store_true', help='Run script in dry-run mode')
     parser.add_argument('--auth-port', type=int, default=0, help='Port for the authentication server')
-    parser.add_argument('--credentials-path', type=str, default='./credentials.json', help='Path to the credentials file')
+    parser.add_argument('--credentials-path', type=str, default='./credentials.json',
+                        help='Path to the credentials file')
     parser.add_argument('--token-path', type=str, default='./token.pickle', help='Path to the token file')
+    parser.add_argument('--log-level', type=str, default='INFO',
+                        help='Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     args = parser.parse_args()
+
+    logging.basicConfig(level=args.log_level.upper(), format='%(asctime)s - %(levelname)s - %(message)s')
 
     if not args.dry_run:
         confirm = input("This script will make changes to the files. Are you sure you want to continue? (Y/N): ")

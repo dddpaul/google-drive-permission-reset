@@ -65,6 +65,7 @@ Optional arguments:
 * `--credentials-path`: The path to the 'credentials.json' file. Default is './credentials.json'. Used for running
   inside Docker.
 * `--token-path`: The path to the 'token.pickle' file. Default is './token.pickle'. Used for running inside Docker.
+* `--log-level`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO.
 
 Docker usage:
 
