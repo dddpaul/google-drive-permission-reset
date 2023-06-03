@@ -18,13 +18,13 @@ git clone https://github.com/dddpaul/google-drive-permission-reset.git
 cd google-drive-permission-reset
 ```
 
-1. Install the dependencies (could be skipped for Docker usage):
+2. Install the dependencies (could be skipped for Docker usage):
 
 ```bash
 pip install -r requirements.txt
 ```
 
-1. Set up your credentials:
+3. Set up your credentials:
 
 * Go to the [Google Cloud Console](https://console.cloud.google.com/)
 * Create a new project, then select it
@@ -36,7 +36,7 @@ Note: The steps for creating 'credentials.json' are just a brief overview, the f
 depends on the Google Cloud Console interface, which might change over time. You may want to link to an up-to-date
 tutorial or to the official Google API Python client docs.
 
-1. Generate your `token.pickle`:
+4. Generate your `token.pickle`:
 
 Run the script once without arguments. A browser window will open asking you to authorize the app. After
 authorization, `token.pickle` file will be created. It is required for the API to authenticate with Google Drive.
