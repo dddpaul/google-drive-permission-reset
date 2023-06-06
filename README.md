@@ -63,12 +63,13 @@ subfolder of root, for example, you can't specify `folder1/folder2`.
 
 Optional arguments:
 
-* `--dry-run`: Run the script without making actual changes. This is useful for testing.
 * `--auth-port`: The port for the authentication server. Default is 0. Used for running inside Docker.
 * `--credentials-path`: The path to the 'credentials.json' file. Default is './credentials.json'. Used for running
   inside Docker.
 * `--token-path`: The path to the 'token.pickle' file. Default is './token.pickle'. Used for running inside Docker.
+* `--users-file`: Path to a YAML file containing the list of allowed users. The only meaningful field of user is 'email'.
 * `--log-level`: Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO.
+* `--dry-run`: Run the script without making actual changes. This is useful for testing.
 
 Docker usage:
 

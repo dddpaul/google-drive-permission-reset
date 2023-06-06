@@ -4,6 +4,7 @@ import pickle
 import argparse
 import time
 import logging
+import yaml
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -12,6 +13,16 @@ from googleapiclient.errors import HttpError
 
 # If modifying these SCOPES, delete the file token.pickle.
 SCOPES = ['https://www.googleapis.com/auth/drive']
+
+
+def load_allowed_users(file_path):
+    """Load the list of allowed users from a YAML file."""
+    try:
+        with open(file_path, 'r') as file:
+            users = yaml.safe_load(file)
+        return [user['email'] for user in users]
+    except FileExistsError as e:
+        return []
 
 
 def authenticate_with_google_drive(auth_port, credentials_path, token_path):
@@ -80,7 +91,7 @@ def google_drive_list_request(service, query, fields, page_token=None):
         return None
 
 
-def process_files(service, folder_id, rate_limit, current_path, dry_run):
+def process_files(service, folder_id, rate_limit, current_path, allowed_emails, dry_run):
     """Process files under the specified folder recursively."""
     try:
         # Get files in the folder
@@ -102,6 +113,7 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
                 logging.debug(u'Checking {0}/{1} ({2})'.format(current_path, item['name'], item['id']))
                 permissions = item.get('permissions', [])
                 for perm in permissions:
+                    # Revoke 'open for anyone' permission
                     if perm['type'] == 'anyone':
                         if not dry_run:
                             try:
@@ -115,6 +127,22 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
                         else:
                             logging.info('Would change sharing settings for file: %s' % item['name'])
                         time.sleep(rate_limit)
+                    # Revoke permissions if the email isn't in the allowed list
+                    if bool(allowed_emails):
+                        if perm['type'] == 'user' and perm['emailAddress'] not in allowed_emails:
+                            if not dry_run:
+                                try:
+                                    service.permissions().delete(
+                                        fileId=item['id'],
+                                        permissionId=perm['id']
+                                    ).execute()
+                                    logging.info(
+                                        'Revoked permission from %s for: %s' % (perm['emailAddress'], item['name']))
+                                except HttpError as error:
+                                    logging.error('Google Drive API request failed: %s' % error)
+                            else:
+                                logging.info(
+                                    'Would revoke permission from %s for: %s' % (perm['emailAddress'], item['name']))
 
             page_token = file_results.get('nextPageToken', None)
             if page_token is None:
@@ -132,7 +160,13 @@ def process_files(service, folder_id, rate_limit, current_path, dry_run):
 
             for item in folder_items:
                 logging.info(u'Processing folder {0}/{1} ({2})'.format(current_path, item['name'], item['id']))
-                process_files(service, item['id'], rate_limit, current_path + '/' + item['name'], dry_run)
+                process_files(
+                    service=service,
+                    folder_id=item['id'],
+                    rate_limit=rate_limit,
+                    current_path=current_path + '/' + item['name'],
+                    allowed_emails=allowed_emails,
+                    dry_run=dry_run)
 
     except Exception as e:
         logging.error('An error occurred during processing: %s' % str(e))
@@ -144,13 +178,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--folder-name', type=str, required=True, help='Name of the folder to process')
     parser.add_argument('--rate-limit', type=float, default=0.5, help='Rate limit in seconds between requests')
-    parser.add_argument('--dry-run', action='store_true', help='Run script in dry-run mode')
     parser.add_argument('--auth-port', type=int, default=0, help='Port for the authentication server')
     parser.add_argument('--credentials-path', type=str, default='./credentials.json',
                         help='Path to the credentials file')
     parser.add_argument('--token-path', type=str, default='./token.pickle', help='Path to the token file')
+    parser.add_argument('--users-file', type=str, help='Path to a YAML file containing the list of allowed users')
     parser.add_argument('--log-level', type=str, default='INFO',
                         help='Set the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
+    parser.add_argument('--dry-run', action='store_true', help='Run script in dry-run mode')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level.upper(), format='%(asctime)s - %(levelname)s - %(message)s')
@@ -168,7 +203,17 @@ def main():
     if folder_id is None:
         return
 
-    process_files(service, folder_id, args.rate_limit, current_path, args.dry_run)
+    allowed_emails = []
+    if bool(args.users_file):
+        allowed_emails = load_allowed_users(args.users_file)
+
+    process_files(
+        service=service,
+        folder_id=folder_id,
+        rate_limit=args.rate_limit,
+        current_path=current_path,
+        allowed_emails=allowed_emails,
+        dry_run=args.dry_run)
 
 
 if __name__ == '__main__':

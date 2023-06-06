@@ -6,4 +6,5 @@ docker run -it \
   --auth-port=45678 \
   --credentials-path /host/credentials.json \
   --token-path /host/token.pickle \
+  --users-file /host/users.yaml \
   "$@"
